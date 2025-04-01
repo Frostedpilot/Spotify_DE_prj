@@ -1,0 +1,205 @@
+version: '3.8'
+
+services:
+  # --- MinIO Service ---
+  minio:
+    image: minio/minio:latest # Use a specific recent version
+    container_name: minio
+    ports:
+      - "9000:9000" # API port
+      - "9001:9001" # Console UI port
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=minioadmin # Change in production
+      - MINIO_ROOT_PASSWORD=minioadmin # Change in production
+      - MINIO_DEFAULT_BUCKETS=airflow-logs,spark-data # Optional: Pre-create buckets
+    command: server /data --console-address ":9001"
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # --- Spark Master ---
+  spark-master:
+    image: bitnami/spark:3.5.5 # Use a specific Spark version
+    container_name: spark-master
+    ports:
+      - "8080:8080" # Spark Master Web UI
+      - "7077:7077" # Spark Master RPC
+    volumes:
+      # Mount your Spark apps if needed
+      - ./spark/apps:/opt/bitnami/spark/apps
+      # Mount custom conf if needed (see Step 2)
+      # - ./spark/conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      # Pass MinIO config directly (alternative to spark-defaults.conf)
+      - SPARK_MASTER_OPTS=-Dspark.hadoop.fs.s3a.endpoint=http://minio:9000 -Dspark.hadoop.fs.s3a.access.key=minioadmin -Dspark.hadoop.fs.s3a.secret.key=minioadmin -Dspark.hadoop.fs.s3a.path.style.access=true -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+    networks:
+      - data_network
+
+  # --- Spark Worker ---
+  spark-worker:
+    image: bitnami/spark:3.5.5 # Use the same Spark version as master
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G # Adjust as needed
+      - SPARK_WORKER_CORES=1    # Adjust as needed
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      # Pass MinIO config directly (alternative to spark-defaults.conf)
+      - SPARK_WORKER_OPTS=-Dspark.hadoop.fs.s3a.endpoint=http://minio:9000 -Dspark.hadoop.fs.s3a.access.key=minioadmin -Dspark.hadoop.fs.s3a.secret.key=minioadmin -Dspark.hadoop.fs.s3a.path.style.access=true -Dspark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+    volumes:
+      # Mount your Spark apps if needed
+      - ./spark/apps:/opt/bitnami/spark/apps
+      # Mount custom conf if needed (see Step 2)
+      # - ./spark/conf/spark-defaults.conf:/opt/bitnami/spark/conf/spark-defaults.conf
+    networks:
+      - data_network
+
+  # --- Postgres Database for Airflow ---
+  postgres:
+    image: postgres:13-alpine
+    container_name: postgres_airflow
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - postgres_db_volume:/var/lib/postgresql/data
+    ports:
+      - "5432:5432" # Only expose if needed externally
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- Airflow Base Setup (using official image) ---
+  # Helper service to initialize the database and create user
+  airflow-init:
+    build: # <<< CHANGED: Use build instruction
+      context: ./ # Directory containing the Dockerfile
+      dockerfile: Dockerfile
+      args: # Pass pip requirements as build arg
+        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5"
+    container_name: airflow_init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor # Use LocalExecutor for simplicity first
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW_UID=50000 # Match host user if needed for volume permissions
+      # Add required packages for Spark and AWS (for MinIO S3 compatibility)
+      - AIRFLOW__WEBSERVER__SECRET_KEY=holyalabama # Change this!
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./spark/apps:/opt/bitnami/spark/apps  # <<< ADD THIS LINE
+      - ./airflow/input:/opt/airflow/input
+      - airflow_ivy_cache:/home/airflow/.ivy2
+    entrypoint: /bin/bash
+    # Run init steps: wait for DB, init DB, create admin user
+    command: -c "airflow db init && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin"
+    networks:
+      - data_network
+
+  # --- Airflow Webserver ---
+  airflow-webserver:
+    build: # <<< CHANGED: Use build instruction
+      context: ./
+      dockerfile: Dockerfile
+      args:
+        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5"
+    container_name: airflow_webserver
+    restart: always
+    depends_on:
+      airflow-init: # Wait for init to complete
+        condition: service_completed_successfully
+    ports:
+      - "8081:8080" # Expose Airflow UI on host port 8081 (8080 might conflict with Spark)
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./spark/apps:/opt/bitnami/spark/apps  # <<< ADD THIS LINE
+      - ./airflow/input:/opt/airflow/input
+      - airflow_ivy_cache:/home/airflow/.ivy2
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW_UID=50000 # Match host user if needed
+      # Secrets below should be managed properly in production
+      - AIRFLOW__WEBSERVER__SECRET_KEY=holyalabama # Change this!
+      # Add required packages for Spark and AWS (for MinIO S3 compatibility)
+    command: webserver
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # --- Airflow Scheduler ---
+  airflow-scheduler:
+    build: # <<< CHANGED: Use build instruction
+      context: ./
+      dockerfile: Dockerfile
+      args:
+        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5"
+    container_name: airflow_scheduler
+    restart: always
+    depends_on:
+      airflow-init: # Wait for init to complete
+        condition: service_completed_successfully
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./spark/apps:/opt/bitnami/spark/apps  # <<< ADD THIS LINE
+      - ./airflow/input:/opt/airflow/input
+      - airflow_ivy_cache:/home/airflow/.ivy2
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW_UID=50000 # Match host user if needed
+      # Add required packages for Spark and AWS (for MinIO S3 compatibility)
+      - AIRFLOW__WEBSERVER__SECRET_KEY=holyalabama # Change this!
+    command: scheduler
+    networks:
+      - data_network
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $(hostname)"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+
+# --- Volumes Definition ---
+volumes:
+  minio_data:
+  postgres_db_volume:
+  airflow_ivy_cache: {}
+  # Airflow volumes are mounted from host in this example, no need to define here unless desired
+
+# --- Network Definition ---
+networks:
+  data_network:
+    driver: bridge
