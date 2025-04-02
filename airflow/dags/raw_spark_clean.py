@@ -49,6 +49,7 @@ with DAG(
             "spark.hadoop.fs.s3a.impl": "org.apache.hadoop.fs.s3a.S3AFileSystem",
         },
         packages="org.apache.hadoop:hadoop-aws:3.3.4",
+        py_files="/opt/bitnami/spark/apps/cleaning_utils.py",
         verbose=True,
     )
 

@@ -242,7 +242,7 @@ if __name__ == "__main__":
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"Starting Spark Raw Cleaning Pipeline - {current_time}")
     spark = SparkSession.builder.appName("Spark Raw Cleaning Pipeline").getOrCreate()
-    s3_path = "s3://spark-data/raw_uploaded_csvs/latest/"
+    s3_path = "s3a://spark-data/raw_uploaded_csvs/latest/"
     file_path = args.file_path
     logger.info(f"File path: {file_path}")
 
@@ -264,7 +264,7 @@ if __name__ == "__main__":
     logger.info(f"DataFrame columns after cleaning: {df_cleaned.columns}")
 
     # Save cleaned DataFrame to S3
-    s3_output_path = "s3://spark-data/silver_data/latest/"
+    s3_output_path = "s3a://spark-data/silver_data/latest/"
     file_name = f"silver_data-{current_time}.parquet"
     file_output_path = s3_output_path + file_name
 

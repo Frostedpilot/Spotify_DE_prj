@@ -11,6 +11,7 @@ from pyspark.sql.functions import (
     expr,
     to_date,
     split,
+    lit,
 )
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import (
@@ -88,18 +89,18 @@ def load_data_to_spark(s3_path: str, spark: SparkSession) -> None:
 def _clean_name(df: DataFrame, col_name="name"):
     c = lower(trim(col(col_name)))
     regex_str = r"^$|^\s*$|^\s*nan\s*$|^\s*null\s*$"
-    c = regexp_replace(c, regex_str, None)
+    c = regexp_replace(c, regex_str, lit(None))
     c = c.alias("cleaned_" + col_name)
-    return_col = df.select(c)
+    return_col = c
     return return_col
 
 
 def _clean_album(df: DataFrame, col_name="album"):
     c = lower(trim(col(col_name)))
     regex_str = r"^$|^\s*$|^\s*nan\s*$|^\s*null\s*$"
-    c = regexp_replace(c, regex_str, None)
+    c = regexp_replace(c, regex_str, lit(None))
     c = c.alias("cleaned_" + col_name)
-    return_col = df.select(c)
+    return_col = c
     return return_col
 
 
@@ -129,7 +130,7 @@ def _clean_artists(df: DataFrame, col_name="artists"):
     )
     helper_func = udf(__clean_artist_elements, ArrayType(StringType()))
     c = helper_func(c).alias("cleaned_" + col_name)
-    return_col = df.select(c)
+    return_col = c
     return return_col
 
 
@@ -141,7 +142,7 @@ def _clean_artist_id(df: DataFrame, col_name="artist_id"):
     )
     helper_func = udf(__clean_artist_id_elements, ArrayType(StringType()))
     c = helper_func(c).alias("cleaned_" + col_name)
-    return_col = df.select(c)
+    return_col = c
     return return_col
 
 
@@ -149,90 +150,102 @@ def _clean_explicit(df: DataFrame, col_name="explicit"):
     c = col(col_name)
     c = lower(trim(c))
     regex_str = r"^$|^\s*$|^\s*nan\s*$|^\s*null\s*$"
-    c = regexp_replace(c, regex_str, None)
-    c = regexp_replace(c, "true", "True")
-    c = regexp_replace(c, "false", "False")
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = regexp_replace(c, regex_str, lit(None))
+    c = regexp_replace(c, "true", lit(True))
+    c = regexp_replace(c, "false", lit(False))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_danceability(df: DataFrame, col_name="danceability"):
     c = col(col_name)
     c = round(c, 3)
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_energy(df: DataFrame, col_name="energy"):
     c = col(col_name)
     c = round(c, 3)
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_loudness(df: DataFrame, col_name="loudness"):
     c = col(col_name)
     c = round(c, 3)
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_mode(df: DataFrame, col_name="mode"):
     c = col(col_name).cast(StringType())
     regex_str = r"^$|^\s*$|^\s*nan\s*$|^\s*null\s*$"
-    c = regexp_replace(c, regex_str, None)
+    c = regexp_replace(c, regex_str, lit(None))
     c = regexp_replace(c, "0", "Minor")
     c = regexp_replace(c, "1", "Major")
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_speechiness(df: DataFrame, col_name="speechiness"):
     c = col(col_name)
     c = round(c, 4)
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_acousticness(df: DataFrame, col_name="acousticness"):
     c = col(col_name)
     c = round(c, 4)
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_instrumentalness(df: DataFrame, col_name="instrumentalness"):
     c = col(col_name)
     c = round(c, 4)
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_liveness(df: DataFrame, col_name="liveness"):
     c = col(col_name)
     c = round(c, 3)
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_valence(df: DataFrame, col_name="valence"):
     c = col(col_name)
     c = round(c, 3)
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_tempo(df: DataFrame, col_name="tempo"):
     c = col(col_name)
     c = round(c, 3)
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
 def _clean_duration_ms(df: DataFrame, col_name="duration_ms"):
-    c = col(col_name)
-    c = expr(c / 1000)
-    return_col = df.select(c.alias("cleaned_duration_s"))
+    c = expr(f"{col_name} / 1000")
+    c = round(c, 0)
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
 
 
@@ -240,5 +253,6 @@ def _clean_release_date(df: DataFrame, col_name="release_date"):
     date_format = "MM/dd/yyyy"
     c = col(col_name)
     c = to_date(c, date_format)
-    return_col = df.select(c.alias("cleaned_" + col_name))
+    c = c.alias("cleaned_" + col_name)
+    return_col = c
     return return_col
