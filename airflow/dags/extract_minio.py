@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import logging
 import pendulum
+import pandas as pd
 from datetime import datetime, timedelta
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models.dag import DAG
@@ -36,9 +37,15 @@ def upload_to_s3(
     s3_hook = S3Hook(aws_conn_id=conn_id)
     for file_name in os.listdir(local_dir):
         if file_name.endswith(".csv"):
+            print(f"Found CSV file: {file_name}")
             local_file_path = os.path.join(local_dir, file_name)
             s3_path = os.path.join(prefix, file_name)
             try:
+                df = pd.read_csv(local_file_path)
+                df.to_parquet(local_file_path.replace(".csv", ".parquet"), index=False)
+                print(f"Converted {local_file_path} to Parquet format.")
+                local_file_path = local_file_path.replace(".csv", ".parquet")
+                s3_path = s3_path.replace(".csv", ".parquet")
                 log.info(f"Uploading {local_file_path} to s3://{bucket_name}/{s3_path}")
                 s3_hook.load_file(
                     filename=local_file_path,
@@ -90,7 +97,6 @@ with DAG(
     tags=["extract", "etl"],
     default_args={
         "owner": "airflow",
-        "retries": 1,
     },
 ) as dag:
     test_connection_task = PythonOperator(

@@ -77,6 +77,7 @@ services:
       - POSTGRES_DB=airflow
     volumes:
       - postgres_db_volume:/var/lib/postgresql/data
+      - ./postgres_init/:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432" # Only expose if needed externally
     networks:
@@ -94,7 +95,7 @@ services:
       context: ./ # Directory containing the Dockerfile
       dockerfile: Dockerfile
       args: # Pass pip requirements as build arg
-        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5"
+        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5, apache-airflow-providers-postgres==5.13.1"
     container_name: airflow_init
     depends_on:
       postgres:
@@ -125,7 +126,7 @@ services:
       context: ./
       dockerfile: Dockerfile
       args:
-        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5"
+        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5, apache-airflow-providers-postgres==5.13.1"
     container_name: airflow_webserver
     restart: always
     depends_on:
@@ -163,7 +164,7 @@ services:
       context: ./
       dockerfile: Dockerfile
       args:
-        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5"
+        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5, apache-airflow-providers-postgres==5.13.1"
     container_name: airflow_scheduler
     restart: always
     depends_on:

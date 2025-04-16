@@ -3,12 +3,13 @@ from pyspark.sql.functions import col
 import argparse
 from datetime import datetime
 import logging
+import sys
 from cleaning_utils import (
     load_data_to_spark,
     _clean_name,
     _clean_album,
     _clean_artists,
-    _clean_artist_id,
+    _clean_artist_ids,
     _clean_explicit,
     _clean_danceability,
     _clean_energy,
@@ -25,7 +26,7 @@ from cleaning_utils import (
 )
 
 
-def spark_clean(logger, spark):
+def spark_clean(logger, df: DataFrame):
     # Start the cleaning process
     logger.info("Starting data cleaning process")
     logger.info(f"DataFrame schema before cleaning: {df.printSchema()}")
@@ -68,7 +69,7 @@ def spark_clean(logger, spark):
     logger.info("Start cleaning column artist_id")
     artist_id = None
     try:
-        artist_id = _clean_artist_id(df, col_name="artist_id")
+        artist_id = _clean_artist_ids(df, col_name="artist_ids")
         logger.info("Column artist_id cleaned successfully")
     except Exception as e:
         logger.error(f"Error cleaning column artist_id: {e}")
@@ -238,6 +239,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", required=True)
     args = parser.parse_args()
+    logging.basicConfig(
+        stream=sys.stdout,
+    )
     logger = logging.getLogger(__name__)
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"Starting Spark Raw Cleaning Pipeline - {current_time}")
@@ -248,16 +252,18 @@ if __name__ == "__main__":
 
     # Load data to Spark DataFrame
     try:
-        df = load_data_to_spark(file_path, spark)
+        df = load_data_to_spark(file_path, spark, data_type="raw")
+        print(df.show(5))
         logger.info("Data loaded successfully")
     except Exception as e:
         logger.error(f"Error loading data: {e}")
         raise e
 
-    col_lst = spark_clean(logger, spark)
+    col_lst = spark_clean(logger, df)
     logger.info("Data cleaning process completed successfully")
 
     df_cleaned = df.select(*col_lst)
+    print(df_cleaned.show(5))
 
     logger.info(f"DataFrame schema after cleaning: {df_cleaned.printSchema()}")
     logger.info(f"DataFrame count after cleaning: {df_cleaned.count()}")
@@ -265,12 +271,9 @@ if __name__ == "__main__":
 
     # Save cleaned DataFrame to S3
     s3_output_path = "s3a://spark-data/silver_data/latest/"
-    file_name = f"silver_data-{current_time}.parquet"
-    file_output_path = s3_output_path + file_name
-
-    logger.info(f"Saving cleaned DataFrame parquet to {file_output_path}")
+    logger.info(f"Saving cleaned DataFrame parquet to {s3_output_path}")
     try:
-        df_cleaned.write.mode("overwrite").parquet(file_output_path)
+        df_cleaned.write.mode("overwrite").parquet(s3_output_path)
         logger.info("Data saved successfully")
     except Exception as e:
         logger.error(f"Error saving data: {e}")
