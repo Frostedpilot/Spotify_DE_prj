@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, explode, arrays_zip
 import argparse
 from datetime import datetime
 import logging
@@ -39,6 +39,26 @@ def clean_silver(logger, df: DataFrame):
     return df
 
 
+def nomnalize_columns(cleaned_df: DataFrame) -> DataFrame:
+    # explode artists and artist_id columns into another DataFrame
+    print(cleaned_df.show(10))
+
+    df_1 = (
+        cleaned_df.select("id", "name", "artists", "artist_ids")
+        .withColumn("artists_info", explode(arrays_zip("artists", "artist_ids")))
+        .select(
+            "id",
+            "name",
+            col("artists_info.artists").alias("artist"),
+            col("artists_info.artist_ids").alias("artist_id"),
+        )
+    )
+
+    print(df_1.show(50))
+
+    return df_1
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", required=True)
@@ -53,7 +73,7 @@ if __name__ == "__main__":
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"Starting Spark Silver Cleaning Pipeline - {current_time}")
     spark = SparkSession.builder.appName("Spark Silver Cleaning Pipeline").getOrCreate()
-    s3_path = "s3a://spark-data/silver_data/latest/"
+    s3_path = "s3a://spark-data/silver_data/song/latest/"
     file_path = args.file_path
     logger.info(f"File path: {file_path}")
 
@@ -68,10 +88,11 @@ if __name__ == "__main__":
 
     # Clean data
     df = clean_silver(logger, df)
-    print(df.show(5))
+
+    artist_df = nomnalize_columns(df)
 
     # Save to s3
-    s3_output_path = "s3a://spark-data/gold_data/latest/"
+    s3_output_path = "s3a://spark-data/gold_data/song/latest/"
 
     try:
         df.write.mode("overwrite").parquet(s3_output_path)
@@ -88,6 +109,18 @@ if __name__ == "__main__":
     df.write.jdbc(
         "jdbc:postgresql://postgres:5432/gold_data_db",
         table="gold_table",
-        mode="overwrite",
+        mode="append",
         properties=connection_properties,
     )
+
+    artist_df.write.jdbc(
+        "jdbc:postgresql://postgres:5432/gold_data_db",
+        table="gold_artist_table",
+        mode="append",
+        properties=connection_properties,
+    )
+
+    spark.stop()
+    logger.info("Spark session stopped")
+    logger.info("Pipeline completed")
+    logger.info(f"End of Spark Raw Cleaning Pipeline - {current_time}")

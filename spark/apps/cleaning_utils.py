@@ -12,8 +12,8 @@ from pyspark.sql.functions import (
     split,
     lit,
     transform,
-    count,
-    when,
+    replace,
+    create_map,
 )
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import (
@@ -141,7 +141,7 @@ def load_data_to_spark(s3_path: str, spark: SparkSession, data_type="raw") -> No
 
 
 def _clean_name(df: DataFrame, col_name="name"):
-    c = lower(trim(col(col_name)))
+    c = trim(col(col_name))
     regex_str = r"^$|^\s*$|^\s*nan\s*$|^\s*null\s*$"
     cleaned = regexp_replace(c, regex_str, "")
     return_col = cleaned.alias(col_name)
@@ -149,7 +149,7 @@ def _clean_name(df: DataFrame, col_name="name"):
 
 
 def _clean_album(df: DataFrame, col_name="album"):
-    c = lower(trim(col(col_name)))
+    c = trim(col(col_name))
     regex_str = r"^$|^\s*$|^\s*nan\s*$|^\s*null\s*$"
     cleaned = regexp_replace(c, regex_str, "")
     return_col = cleaned.alias(col_name)
@@ -189,7 +189,7 @@ def _clean_explicit(df: DataFrame, col_name="explicit"):
     cleaned1 = regexp_replace(lowered, regex_str, "")
     cleaned2 = regexp_replace(cleaned1, "true", lit(True))
     cleaned3 = regexp_replace(cleaned2, "false", lit(False))
-    return_col = cleaned3.alias(col_name)
+    return_col = cleaned3.alias(col_name).cast("boolean")
     return return_col
 
 
@@ -278,6 +278,30 @@ def _clean_release_date(df: DataFrame, col_name="release_date"):
     c = col(col_name)
     date = to_date(c, date_format)
     return_col = date.alias(col_name)
+    return return_col
+
+
+def _clean_key(df: DataFrame, col_name="key"):
+    d = {
+        "0": "C",
+        "1": "C♯/D♭",
+        "2": "D",
+        "3": "D♯/E♭",
+        "4": "E",
+        "5": "F",
+        "6": "F♯/G♭",
+        "7": "G",
+        "8": "G♯/A♭",
+        "9": "A",
+        "10": "A♯/B♭",
+        "11": "B",
+    }
+    mapping_expr = create_map(
+        *[item for k, v in d.items() for item in (lit(k), lit(v))]
+    )
+    c = col(col_name).cast("string")
+    converted = mapping_expr[c]
+    return_col = converted.alias(col_name)
     return return_col
 
 

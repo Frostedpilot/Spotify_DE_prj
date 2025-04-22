@@ -9,12 +9,13 @@ from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models.dag import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.utils.trigger_rule import TriggerRule
 
 # ---config---#
-LOCAL_INPUT_DIR = "/opt/airflow/input/song_data/"
+LOCAL_INPUT_DIR = "/opt/airflow/input/user_data/"
 MINIO_CONN_ID = "s3_minio"
 MINIO_BUCKET = "spark-data"
-MINIO_PREFIX = "raw_uploaded_csvs/song/latest/"
+MINIO_PREFIX = "raw_uploaded_csvs/user/latest/"
 
 
 # ---tasks functions---#
@@ -43,6 +44,8 @@ def upload_to_s3(
             s3_path = os.path.join(prefix, file_name)
             try:
                 df = pd.read_csv(local_file_path)
+                # Drop sensitive fields
+                df = df.drop(columns=["ip_addr"], inplace=False, errors="ignore")
                 df.to_parquet(local_file_path.replace(".csv", ".parquet"), index=False)
                 print(f"Converted {local_file_path} to Parquet format.")
                 local_file_path = local_file_path.replace(".csv", ".parquet")
@@ -91,7 +94,7 @@ def test_connection(conn_id=MINIO_CONN_ID, bucket_name=MINIO_BUCKET):
 
 # ---DAG---#
 with DAG(
-    dag_id="load_minio",
+    dag_id="load_minio_but_user",
     start_date=pendulum.datetime(2025, 4, 1, tz="UTC"),
     schedule=None,
     catchup=False,
@@ -118,11 +121,13 @@ with DAG(
             "prefix": MINIO_PREFIX,
             "conn_id": MINIO_CONN_ID,
         },
+        trigger_rule=TriggerRule.ALL_SUCCESS,
     )
 
-    trigger_next_dag = TriggerDagRunOperator(
-        task_id="trigger_next_dag",
-        trigger_dag_id="raw_spark_clean",
+    trigger_dag_task = TriggerDagRunOperator(
+        task_id="trigger_dag",
+        trigger_dag_id="raw_spark_clean_but_user",
+        trigger_rule=TriggerRule.ALL_SUCCESS,
     )
 
-    test_connection_task >> upload_task >> trigger_next_dag
+    test_connection_task >> upload_task >> trigger_dag_task

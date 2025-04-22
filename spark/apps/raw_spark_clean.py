@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import col
+from pyspark.sql.functions import col, explode, lit
 import argparse
 from datetime import datetime
 import logging
@@ -13,6 +13,7 @@ from cleaning_utils import (
     _clean_explicit,
     _clean_danceability,
     _clean_energy,
+    _clean_key,
     _clean_loudness,
     _clean_mode,
     _clean_speechiness,
@@ -108,8 +109,14 @@ def spark_clean(logger, df: DataFrame):
         logger.error(f"Error cleaning column energy: {e}")
         raise e
 
-    logger.info("No need to clean column key")
-    key = col("key")
+    logger.info("Start cleaning column key")
+    key = None
+    try:
+        key = _clean_key(df, col_name="key")
+        logger.info("Column key cleaned successfully")
+    except Exception as e:
+        logger.error(f"Error cleaning column key: {e}")
+        raise e
 
     logger.info("Start cleaning column loudness")
     loudness = None
@@ -207,6 +214,14 @@ def spark_clean(logger, df: DataFrame):
         logger.error(f"Error cleaning column release_date: {e}")
         raise e
 
+    # logger.info("Start cleaning column popularity")
+    # popularity = None
+    # try:
+    #     popularity = col("popularity")
+    # except Exception as e:
+    #     logger.error(f"Error cleaning column popularity: {e}")
+    #     raise e
+
     return [
         i,
         name,
@@ -232,6 +247,7 @@ def spark_clean(logger, df: DataFrame):
         time_signature,
         year,
         release_date,
+        # popularity,
     ]
 
 
@@ -246,7 +262,7 @@ if __name__ == "__main__":
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"Starting Spark Raw Cleaning Pipeline - {current_time}")
     spark = SparkSession.builder.appName("Spark Raw Cleaning Pipeline").getOrCreate()
-    s3_path = "s3a://spark-data/raw_uploaded_csvs/latest/"
+    s3_path = "s3a://spark-data/raw_uploaded_csvs/song/latest/"
     file_path = args.file_path
     logger.info(f"File path: {file_path}")
 
@@ -260,9 +276,11 @@ if __name__ == "__main__":
         raise e
 
     col_lst = spark_clean(logger, df)
+    col_lst = [i if i is not None else lit(None) for i in col_lst]
     logger.info("Data cleaning process completed successfully")
 
     df_cleaned = df.select(*col_lst)
+
     print(df_cleaned.show(5))
 
     logger.info(f"DataFrame schema after cleaning: {df_cleaned.printSchema()}")
@@ -270,7 +288,7 @@ if __name__ == "__main__":
     logger.info(f"DataFrame columns after cleaning: {df_cleaned.columns}")
 
     # Save cleaned DataFrame to S3
-    s3_output_path = "s3a://spark-data/silver_data/latest/"
+    s3_output_path = "s3a://spark-data/silver_data/song/latest/"
     logger.info(f"Saving cleaned DataFrame parquet to {s3_output_path}")
     try:
         df_cleaned.write.mode("overwrite").parquet(s3_output_path)
