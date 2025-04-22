@@ -181,3 +181,8 @@ postgresql_data/
 
 *.csv
 *.parquet
+
+/mbdump
+*.ipynb
+
+secret.json
