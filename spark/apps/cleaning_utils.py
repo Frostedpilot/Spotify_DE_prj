@@ -119,8 +119,8 @@ def _get_blank_df(spark: SparkSession, data_type="raw") -> DataFrame:
     match data_type:
         case "raw":
             my_schema = _get_schema()
-        case "silver":
-            my_schema = _get_silver_schema()
+        case "silver" | "gold":
+            my_schema
         case _:
             raise ValueError(f"Unknown data type: {data_type}")
     blank_df = spark.createDataFrame([], my_schema)
@@ -131,7 +131,7 @@ def load_data_to_spark(s3_path: str, spark: SparkSession, data_type="raw") -> No
     match data_type:
         case "raw":
             schema = _get_schema()
-        case "silver":
+        case "silver" | "gold":
             schema = _get_silver_schema()
         case _:
             raise ValueError(f"Unknown data type: {data_type}")
@@ -142,17 +142,17 @@ def load_data_to_spark(s3_path: str, spark: SparkSession, data_type="raw") -> No
 
 def _clean_name(df: DataFrame, col_name="name"):
     c = trim(col(col_name))
-    regex_str = r"^$|^\s*$|^\s*nan\s*$|^\s*null\s*$"
-    cleaned = regexp_replace(c, regex_str, "")
-    return_col = cleaned.alias(col_name)
+    # regex_str = r"^$|^\s*$|^\s*nan\s*$|^\s*null\s*$"
+    # cleaned = regexp_replace(c, regex_str, "")
+    return_col = c.alias(col_name)
     return return_col
 
 
 def _clean_album(df: DataFrame, col_name="album"):
     c = trim(col(col_name))
-    regex_str = r"^$|^\s*$|^\s*nan\s*$|^\s*null\s*$"
-    cleaned = regexp_replace(c, regex_str, "")
-    return_col = cleaned.alias(col_name)
+    # regex_str = r"^$|^\s*$|^\s*nan\s*$|^\s*null\s*$"
+    # cleaned = regexp_replace(c, regex_str, "")
+    return_col = c.alias(col_name)
     return return_col
 
 
@@ -161,11 +161,11 @@ def _clean_artists(df: DataFrame, col_name="artists"):
     split_array = split(c, ",", -1)
     clean_element = lambda x: regexp_replace(trim(x), r"^\['|'\]$|^'|'$|^\[|\]$", "")
     transformed_array = transform(split_array, clean_element)
-    moar_clean_element = lambda x: regexp_replace(
-        trim(x), r"^\s*$|^\s*nan\s*$|^\s*null\s*$", ""
-    )
-    moar_transformed_array = transform(transformed_array, moar_clean_element)
-    return_col = moar_transformed_array.alias(col_name)
+    # moar_clean_element = lambda x: regexp_replace(
+    #     trim(x), r"^\s*$|^\s*nan\s*$|^\s*null\s*$", ""
+    # )
+    # moar_transformed_array = transform(transformed_array, moar_clean_element)
+    return_col = transformed_array.alias(col_name)
     return return_col
 
 
@@ -174,11 +174,11 @@ def _clean_artist_ids(df: DataFrame, col_name="artist_ids"):
     split_array = split(c, ",", -1)
     clean_element = lambda x: regexp_replace(trim(x), r"^\['|'\]$|^'|'$|^\[|\]$", "")
     transformed_array = transform(split_array, clean_element)
-    moar_clean_element = lambda x: regexp_replace(
-        trim(x), r"^\s*$|^\s*nan\s*$|^\s*null\s*$", ""
-    )
-    moar_transformed_array = transform(transformed_array, moar_clean_element)
-    return_col = moar_transformed_array.alias(col_name)
+    # moar_clean_element = lambda x: regexp_replace(
+    #     trim(x), r"^\s*$|^\s*nan\s*$|^\s*null\s*$", ""
+    # )
+    # moar_transformed_array = transform(transformed_array, moar_clean_element)
+    return_col = transformed_array.alias(col_name)
     return return_col
 
 
@@ -305,19 +305,18 @@ def _clean_key(df: DataFrame, col_name="key"):
     return return_col
 
 
-def _check_num_nulls(df: DataFrame, col_list: str):
-    expr_str = ""
-    for col_name in col_list:
-        if expr_str:
-            expr_str += " OR "
-        expr_str += f"{col_name} IS NULL"
+def _check_num_nulls(df: DataFrame, col_list):
+    if isinstance(col_list, str):
+        expr_str = f"{col_list} IS NULL"
+    elif isinstance(col_list, list):
+        expr_str = " OR ".join([f"{col} IS NULL" for col in col_list])
 
     num_nulls = df.filter(expr(expr_str)).count()
 
     num_rows = df.count()
 
     if num_rows == 0:
-        return 0.0
+        return 0.0, 0.0, 0.0
 
     rate_nulls = num_nulls / num_rows
     return rate_nulls, num_nulls, num_rows

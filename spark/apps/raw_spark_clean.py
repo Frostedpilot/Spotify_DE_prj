@@ -256,13 +256,19 @@ if __name__ == "__main__":
     parser.add_argument("--file_path", required=True)
     args = parser.parse_args()
     logging.basicConfig(
-        stream=sys.stdout,
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler("spark_clean.log"),
+        ],
     )
     logger = logging.getLogger(__name__)
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"Starting Spark Raw Cleaning Pipeline - {current_time}")
     spark = SparkSession.builder.appName("Spark Raw Cleaning Pipeline").getOrCreate()
     s3_path = "s3a://spark-data/raw_uploaded_csvs/song/latest/"
+    s3_log_path = "s3a://spark-data/logs/song/"
     file_path = args.file_path
     logger.info(f"File path: {file_path}")
 

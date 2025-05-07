@@ -95,7 +95,7 @@ services:
       context: ./ # Directory containing the Dockerfile
       dockerfile: Dockerfile
       args: # Pass pip requirements as build arg
-        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5, apache-airflow-providers-postgres==5.13.1, spotipy"
+        _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-apache-spark apache-airflow-providers-amazon pyspark==3.5.5, apache-airflow-providers-postgres==5.13.1"
     container_name: airflow_init
     depends_on:
       postgres:
@@ -107,6 +107,9 @@ services:
       - AIRFLOW_UID=50000 # Match host user if needed for volume permissions
       # Add required packages for Spark and AWS (for MinIO S3 compatibility)
       - AIRFLOW__WEBSERVER__SECRET_KEY=holyalabama # Change this!
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_ENDPOINT_URL=http://minio:9000
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
@@ -114,6 +117,7 @@ services:
       - ./spark/apps:/opt/bitnami/spark/apps  # <<< ADD THIS LINE
       - ./airflow/input:/opt/airflow/input
       - airflow_ivy_cache:/home/airflow/.ivy2
+      - ./great_expectations:/opt/airflow/great_expectations # Mount GX config
     entrypoint: /bin/bash
     # Run init steps: wait for DB, init DB, create admin user
     command: -c "airflow db init && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin"
@@ -141,6 +145,7 @@ services:
       - ./spark/apps:/opt/bitnami/spark/apps  # <<< ADD THIS LINE
       - ./airflow/input:/opt/airflow/input
       - airflow_ivy_cache:/home/airflow/.ivy2
+      - ./great_expectations:/opt/airflow/great_expectations # Mount GX config
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
@@ -148,7 +153,10 @@ services:
       - AIRFLOW_UID=50000 # Match host user if needed
       # Secrets below should be managed properly in production
       - AIRFLOW__WEBSERVER__SECRET_KEY=holyalabama # Change this!
-      # Add required packages for Spark and AWS (for MinIO S3 compatibility)
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_ENDPOINT_URL=http://minio:9000
+
     command: webserver
     networks:
       - data_network
@@ -177,6 +185,7 @@ services:
       - ./spark/apps:/opt/bitnami/spark/apps  # <<< ADD THIS LINE
       - ./airflow/input:/opt/airflow/input
       - airflow_ivy_cache:/home/airflow/.ivy2
+      - ./great_expectations:/opt/airflow/great_expectations # Mount GX config
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
@@ -184,6 +193,9 @@ services:
       - AIRFLOW_UID=50000 # Match host user if needed
       # Add required packages for Spark and AWS (for MinIO S3 compatibility)
       - AIRFLOW__WEBSERVER__SECRET_KEY=holyalabama # Change this!
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_ENDPOINT_URL=http://minio:9000
     command: scheduler
     networks:
       - data_network

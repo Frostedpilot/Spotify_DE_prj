@@ -186,3 +186,5 @@ postgresql_data/
 *.ipynb
 
 secret.json
+
+aaa/

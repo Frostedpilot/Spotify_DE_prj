@@ -14,6 +14,7 @@ from cleaning_utils_but_user import (
     _clean_platform,
     _clean_type,
     _clean_id,
+    _check_num_nulls,
 )
 
 
@@ -56,9 +57,7 @@ def spark_clean(logger, df: DataFrame):
 
     # type column cleaning
     logger.info("Cleaning type column")
-    track_type = (
-        _clean_type(df, col_name="spotify_track_uri").alias("type").alias("type")
-    )
+    track_type = _clean_type(df, col_name="spotify_track_uri").alias("type")
 
     # no need to clean spotify_track_uri column
     logger.info("Cleaning spotify_track_uri column")
@@ -81,6 +80,46 @@ def spark_clean(logger, df: DataFrame):
     return col_lst
 
 
+def drop_dupes(df: DataFrame, id_list: DataFrame) -> DataFrame:
+    cols = df.columns
+    return_df = df.join(
+        id_list,
+        df.id == id_list.id,
+        "left_anti",
+    ).select(*cols)
+
+    return return_df
+
+
+def process_nan(logger, df: DataFrame):
+    cols = df.columns
+
+    rate_nulls, num_nulls, num_rows = _check_num_nulls(df=df, col_list=cols)
+
+    if rate_nulls < 0.1 or num_nulls <= 10:
+        logger.info(f"Null values in the DataFrame: {num_nulls} ({rate_nulls:.2%})")
+        logger.info(
+            "DataFrame does not contain too many null values, dropping all nulls"
+        )
+
+        print(f"Null values in the DataFrame: {num_nulls} ({rate_nulls:.2%})")
+
+        df = df.dropna()
+    else:
+        logger.info(f"Null values in the DataFrame: {num_nulls} ({rate_nulls:.2%})")
+        logger.info(
+            "DataFrame contains too many null values, cleaning them and not dropping"
+        )
+
+        logger.error("Not yet implemented")
+
+        raise NotImplementedError(
+            "Cleaning with too many null values is not yet implemented"
+        )
+
+    return df
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", required=True)
@@ -89,7 +128,12 @@ if __name__ == "__main__":
     parser.add_argument("--db_pass", required=True)
     args = parser.parse_args()
     logging.basicConfig(
-        stream=sys.stdout,
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler("user_spark_clean.log"),
+        ],
     )
     logger = logging.getLogger(__name__)
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -133,6 +177,18 @@ if __name__ == "__main__":
     # Save cleaned DataFrame to PostgreSQL
     connection_properties = {"user": args.db_user, "password": args.db_pass}
     connection_properties["driver"] = "org.postgresql.Driver"
+
+    id_list = (
+        spark.read.format("jdbc")
+        .option("url", "jdbc:postgresql://postgres:5432/gold_data_db")
+        .option("user", args.db_user)
+        .option("password", args.db_pass)
+        .option("driver", "org.postgresql.Driver")
+        .option("query", "select id from gold_user_table")
+        .load()
+    )
+    df_cleaned = drop_dupes(df_cleaned, id_list)
+    df_cleaned = process_nan(logger, df_cleaned)
 
     print(f"Number of rows to be inserted: {df.count()}")
     df_cleaned.write.jdbc(

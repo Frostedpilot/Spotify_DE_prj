@@ -57,7 +57,7 @@ def _create_gold_table():
     explicit BOOLEAN,
     danceability DOUBLE PRECISION,
     energy DOUBLE PRECISION,
-    key INTEGER,
+    key VARCHAR(10),
     loudness DOUBLE PRECISION,
     mode VARCHAR(5),
     speechiness DOUBLE PRECISION,
@@ -71,6 +71,85 @@ def _create_gold_table():
     year INTEGER,
     release_date DATE                   
     );
+
+    CREATE TABLE IF NOT EXISTS gold_user_table (
+    ts TIMESTAMP,
+    id VARCHAR(255),
+    platform VARCHAR(20),
+    seconds_played INTEGER,
+    track_name VARCHAR(255),
+    album_artist_name VARCHAR(255),
+    album_name VARCHAR(255),
+    type VARCHAR(20)
+    );
+
+    CREATE TABLE IF NOT EXISTS gold_artist_table (
+    id VARCHAR(255) REFERENCES gold_table (id),
+    name VARCHAR(255),
+    artist VARCHAR(255),
+    artist_id VARCHAR(255),
+    PRIMARY KEY (id, artist_id)
+    );
     """
 
+    return sql
+
+
+def _create_view():
+    sql = """
+-- View for User Streaming Data with Timestamp Components
+CREATE OR REPLACE VIEW user_view AS
+SELECT
+    -- Direct pass-through columns
+    album_artist_name,
+    track_name,
+    id AS track_id,
+    album_name,
+    seconds_played,
+
+    -- Extracting date part from timestamp
+    DATE_TRUNC('day', ts)::date AS activity_date,
+
+    -- Extracting sub-timestamp components
+    EXTRACT(HOUR FROM ts) AS hour_of_day,
+    TO_CHAR(ts, 'Dy') as day_of_week,
+    EXTRACT(MONTH FROM ts) AS month_of_year
+
+FROM
+    gold_user_table;
+
+-- View for Track Audio Features and Metadata
+CREATE OR REPLACE VIEW track_view AS
+SELECT
+    id AS track_id,
+    album_id,
+
+    year,
+    key,
+    mode,
+
+    -- Core audio features
+    energy,
+    loudness,
+    danceability,
+    speechiness,
+    acousticness,
+    instrumentalness,
+    liveness,
+    valence,
+    tempo,
+
+    artist_ids[1] AS primary_artist_id
+
+FROM
+    gold_table;
+
+-- View for Artist Information
+CREATE OR REPLACE VIEW artist_view AS
+SELECT
+    artist,
+    artist_id
+FROM
+    gold_artist_table;
+    """
     return sql

@@ -7,12 +7,7 @@ import sys
 from cleaning_utils import load_data_to_spark, _check_num_nulls
 
 
-def clean_silver(logger, df: DataFrame):
-    col_names = df.columns
-    # Remove the release_date column from the list of columns since it is not really needed
-
-    col_names.remove("release_date")
-
+def process_nan(logger, col_names, df: DataFrame):
     rate_nulls, num_nulls, num_rows = _check_num_nulls(df, col_names)
 
     if rate_nulls < 0.1 or num_nulls <= 10:
@@ -39,26 +34,6 @@ def clean_silver(logger, df: DataFrame):
     return df
 
 
-def nomnalize_columns(cleaned_df: DataFrame) -> DataFrame:
-    # explode artists and artist_id columns into another DataFrame
-    print(cleaned_df.show(10))
-
-    df_1 = (
-        cleaned_df.select("id", "name", "artists", "artist_ids")
-        .withColumn("artists_info", explode(arrays_zip("artists", "artist_ids")))
-        .select(
-            "id",
-            "name",
-            col("artists_info.artists").alias("artist"),
-            col("artists_info.artist_ids").alias("artist_id"),
-        )
-    )
-
-    print(df_1.show(50))
-
-    return df_1
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--file_path", required=True)
@@ -67,7 +42,12 @@ if __name__ == "__main__":
     parser.add_argument("--db_pass", required=True)
     args = parser.parse_args()
     logging.basicConfig(
-        stream=sys.stdout,
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler("silver_spark_clean.log"),
+        ],
     )
     logger = logging.getLogger(__name__)
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -87,9 +67,10 @@ if __name__ == "__main__":
         raise e
 
     # Clean data
-    df = clean_silver(logger, df)
+    col_names = df.columns
+    col_names.remove("release_date")
 
-    artist_df = nomnalize_columns(df)
+    df = process_nan(logger, col_names, df)
 
     # Save to s3
     s3_output_path = "s3a://spark-data/gold_data/song/latest/"
@@ -100,25 +81,6 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Error saving data: {e}")
         raise e
-
-    # Load data to PostgreSQL
-    connection_properties = {"user": args.db_user, "password": args.db_pass}
-    connection_properties["driver"] = "org.postgresql.Driver"
-
-    print(f"Number of rows to be inserted: {df.count()}")
-    df.write.jdbc(
-        "jdbc:postgresql://postgres:5432/gold_data_db",
-        table="gold_table",
-        mode="append",
-        properties=connection_properties,
-    )
-
-    artist_df.write.jdbc(
-        "jdbc:postgresql://postgres:5432/gold_data_db",
-        table="gold_artist_table",
-        mode="append",
-        properties=connection_properties,
-    )
 
     spark.stop()
     logger.info("Spark session stopped")

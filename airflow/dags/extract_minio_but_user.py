@@ -10,12 +10,14 @@ from airflow.models.dag import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.utils.trigger_rule import TriggerRule
+from airflow.models import Variable
 
 # ---config---#
 LOCAL_INPUT_DIR = "/opt/airflow/input/user_data/"
 MINIO_CONN_ID = "s3_minio"
-MINIO_BUCKET = "spark-data"
 MINIO_PREFIX = "raw_uploaded_csvs/user/latest/"
+
+MINIO_BUCKET = Variable.get("MINIO_BUCKET")
 
 
 # ---tasks functions---#

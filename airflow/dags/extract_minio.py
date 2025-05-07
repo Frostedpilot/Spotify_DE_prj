@@ -9,12 +9,14 @@ from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models.dag import DAG
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.models import Variable
 
 # ---config---#
 LOCAL_INPUT_DIR = "/opt/airflow/input/song_data/"
 MINIO_CONN_ID = "s3_minio"
-MINIO_BUCKET = "spark-data"
 MINIO_PREFIX = "raw_uploaded_csvs/song/latest/"
+
+MINIO_BUCKET = Variable.get("MINIO_BUCKET")
 
 
 # ---tasks functions---#

@@ -20,6 +20,7 @@ ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 
 # Add JAVA_HOME/bin to the PATH for convenience
 ENV PATH=$JAVA_HOME/bin:$PATH
+ENV PATH=/home/airflow/.local/bin:$PATH
 
 # Create the .ivy2 directory and set ownership BEFORE switching user
 # This helps ensure correct permissions when the volume is mounted
@@ -31,4 +32,4 @@ USER airflow
 # Install the Python dependencies using ARG/ENV passed from docker-compose
 # This keeps the dependency management consistent
 ARG _PIP_ADDITIONAL_REQUIREMENTS
-RUN if [ -n "$_PIP_ADDITIONAL_REQUIREMENTS" ]; then pip install --no-cache-dir $_PIP_ADDITIONAL_REQUIREMENTS; fi
+RUN if [ -n "$_PIP_ADDITIONAL_REQUIREMENTS" ]; then pip install --no-cache-dir $_PIP_ADDITIONAL_REQUIREMENTS great_expectations pandas pyarrow s3fs boto3; fi

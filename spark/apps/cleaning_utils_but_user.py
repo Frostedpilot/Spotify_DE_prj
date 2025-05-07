@@ -111,3 +111,20 @@ def _clean_type(df: DataFrame, col_name: str = "spotify_track_uri"):
 def _clean_id(df: DataFrame, col_name: str = "spotify_track_uri"):
     c = regexp_extract(col(col_name), r"\w*:\w*:(\w*)", 1)
     return c
+
+
+def _check_num_nulls(df: DataFrame, col_list):
+    if isinstance(col_list, str):
+        expr_str = f"{col_list} IS NULL"
+    elif isinstance(col_list, list):
+        expr_str = " OR ".join([f"{col} IS NULL" for col in col_list])
+
+    num_nulls = df.filter(expr(expr_str)).count()
+
+    num_rows = df.count()
+
+    if num_rows == 0:
+        return 0.0, 0.0, 0.0
+
+    rate_nulls = num_nulls / num_rows
+    return rate_nulls, num_nulls, num_rows
