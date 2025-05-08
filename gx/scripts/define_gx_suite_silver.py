@@ -1,14 +1,18 @@
 import great_expectations as gx
-from great_expectations.exceptions import DataContextError
-from great_expectations.core.expectation_suite import ExpectationSuite
-from great_expectations.core.expectation_configuration import ExpectationConfiguration
+from great_expectations.core import ExpectationSuite  # Import ExpectationSuite
+from great_expectations.expectations.expectation_configuration import (
+    ExpectationConfiguration,
+)  # Corrected import
+from great_expectations.exceptions import DataContextError  # Import DataContextError
 import datetime
 import logging
 import sys
 
 # --- Configuration ---
 # Path to your Great Expectations project directory
-CONTEXT_ROOT_DIR = "/opt/airflow/great_expectations"  # Adjust if running from a different relative location
+CONTEXT_ROOT_DIR = (
+    "/opt/airflow/gx"  # Adjust if running from a different relative location
+)
 
 # Name of the Expectation Suite to create/update
 EXPECTATION_SUITE_NAME = "silver_gx_song"  # Use a distinct name initially if needed
@@ -31,7 +35,7 @@ def define_gx_suite_manually():
 
     log.info(f"Constructing Expectation Suite: {EXPECTATION_SUITE_NAME}")
 
-    suite = ExpectationSuite(expectation_suite_name=EXPECTATION_SUITE_NAME)
+    suite = ExpectationSuite(name=EXPECTATION_SUITE_NAME)
 
     suite.meta = {
         "great_expectations_version": gx.__version__,
@@ -45,6 +49,8 @@ def define_gx_suite_manually():
 
     log.info("Adding expectations to the suite...")
     try:
+        es = []
+        log.info("Adding all_columns expectation...")
         all_columns = [
             "id",
             "name",
@@ -72,12 +78,14 @@ def define_gx_suite_manually():
             "release_date",
         ]
 
-        suite.add_expectation(
-            ExpectationConfiguration(
-                expectation_type="expect_table_columns_to_match_ordered_list",
-                kwargs={"column_list": all_columns},
+        es.append(
+            gx.expectations.ExpectTableColumnsToMatchOrderedList(
+                column_list=all_columns,
+                result_format="COMPLETE",
             )
         )
+
+        log.info("Adding column null expectations...")
 
         # Only columns that are used later in view in Postgres and ids
         not_null_columns = [
@@ -98,12 +106,13 @@ def define_gx_suite_manually():
         ]
 
         for col in not_null_columns:
-            suite.add_expectation(
-                ExpectationConfiguration(
-                    expectation_type="expect_column_values_to_not_be_null",
-                    kwargs={"column": col},
+            es.append(
+                gx.expectations.ExpectColumnValuesToNotBeNull(
+                    column=col, result_format="COMPLETE"
                 )
             )
+
+        log.info("Adding column type expectations: int...")
 
         int_columns = [
             "track_number",
@@ -113,15 +122,13 @@ def define_gx_suite_manually():
             "year",
         ]
         for col in int_columns:
-            suite.add_expectation(
-                ExpectationConfiguration(
-                    expectation_type="expect_column_values_to_be_of_type",
-                    kwargs={
-                        "column": col,
-                        "type_": "int",
-                    },
+            es.append(
+                gx.expectations.ExpectColumnValuesToBeOfType(
+                    column=col, type_="int", result_format="COMPLETE"
                 )
             )
+
+        log.info("Adding column type expectations: float...")
 
         float_columns = [
             "danceability",
@@ -136,15 +143,13 @@ def define_gx_suite_manually():
         ]
 
         for col in float_columns:
-            suite.add_expectation(
-                ExpectationConfiguration(
-                    expectation_type="expect_column_values_to_be_of_type",
-                    kwargs={
-                        "column": col,
-                        "type_": "float",
-                    },
+            es.append(
+                gx.expectations.ExpectColumnValuesToBeOfType(
+                    column=col, type_="float", result_format="COMPLETE"
                 )
             )
+
+        log.info("Adding column range expectaions...")
 
         cols_in_0_1 = [
             "danceability",
@@ -157,34 +162,30 @@ def define_gx_suite_manually():
         ]
 
         for col in cols_in_0_1:
-            suite.add_expectation(
-                ExpectationConfiguration(
-                    expectation_type="expect_column_values_to_be_between",
-                    kwargs={
-                        "column": col,
-                        "min_value": 0.0,
-                        "max_value": 1.0,
-                    },
+            es.append(
+                gx.expectations.ExpectColumnValuesToBeBetween(
+                    column=col,
+                    min_value=0.0,
+                    max_value=1.0,
+                    result_format="COMPLETE",
                 )
             )
 
-        suite.add_expectation(
-            ExpectationConfiguration(
-                expectation_type="expect_column_values_to_be_of_type",
-                kwargs={
-                    "column": "explicit",
-                    "type_": "bool",
-                },
+        log.info("Adding column type expectations:bool...")
+
+        es.append(
+            gx.expectations.ExpectColumnValuesToBeOfType(
+                column="explicit", type_="bool", result_format="COMPLETE"
             )
         )
 
-        suite.add_expectation(
-            ExpectationConfiguration(
-                expectation_type="expect_column_values_to_be_in_set",
-                kwargs={
-                    "column": "mode",
-                    "value_set": ["Major", "Minor"],
-                },
+        log.info("Adding column set expectations...")
+
+        es.append(
+            gx.expectations.ExpectColumnValuesToBeInSet(
+                column="mode",
+                value_set=["Major", "Minor"],
+                result_format="COMPLETE",
             )
         )
 
@@ -203,33 +204,32 @@ def define_gx_suite_manually():
             "B",
         ]
 
-        suite.add_expectation(
-            ExpectationConfiguration(
-                expectation_type="expect_column_values_to_be_in_set",
-                kwargs={
-                    "column": "key",
-                    "value_set": key_codes,
-                },
+        es.append(
+            gx.expectations.ExpectColumnValuesToBeInSet(
+                column="key",
+                value_set=key_codes,
+                result_format="COMPLETE",
             )
         )
+
+        log.info("Adding column year expectations...")
 
         this_year = datetime.datetime.now().year
 
-        suite.add_expectation(
-            ExpectationConfiguration(
-                expectation_type="expect_column_values_to_be_between",
-                kwargs={
-                    "column": "year",
-                    "min_value": 1800,
-                    "max_value": this_year,
-                },
+        es.append(
+            gx.expectations.ExpectColumnValuesToBeBetween(
+                column="year",
+                min_value=1800,
+                max_value=this_year,
+                result_format="COMPLETE",
             )
         )
 
-        suite.add_expectation(
-            ExpectationConfiguration(
-                expectation_type="expect_column_values_to_be_unique",
-                kwargs={"column": "id"},
+        log.info("Adding column unique expectations...")
+
+        es.append(
+            gx.expectations.ExpectColumnValuesToBeUnique(
+                column="id", result_format="COMPLETE"
             )
         )
 
@@ -239,10 +239,12 @@ def define_gx_suite_manually():
 
     log.info("Saving Expectation Suite...")
     try:
-        # Save the constructed suite object (overwrites if suite with same name exists)
-        context.save_expectation_suite(
-            expectation_suite=suite, expectation_suite_name=EXPECTATION_SUITE_NAME
-        )
+
+        for expectation in es:
+            suite.add_expectation(expectation)
+
+        context.suites.add_or_update(suite)
+
         log.info(
             f"Expectation Suite '{EXPECTATION_SUITE_NAME}' saved successfully to {CONTEXT_ROOT_DIR}/expectations!"
         )

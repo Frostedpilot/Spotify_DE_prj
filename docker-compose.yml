@@ -117,7 +117,7 @@ services:
       - ./spark/apps:/opt/bitnami/spark/apps  # <<< ADD THIS LINE
       - ./airflow/input:/opt/airflow/input
       - airflow_ivy_cache:/home/airflow/.ivy2
-      - ./great_expectations:/opt/airflow/great_expectations # Mount GX config
+      - ./gx:/opt/airflow/gx # Mount GX config
     entrypoint: /bin/bash
     # Run init steps: wait for DB, init DB, create admin user
     command: -c "airflow db init && airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin"
@@ -145,7 +145,7 @@ services:
       - ./spark/apps:/opt/bitnami/spark/apps  # <<< ADD THIS LINE
       - ./airflow/input:/opt/airflow/input
       - airflow_ivy_cache:/home/airflow/.ivy2
-      - ./great_expectations:/opt/airflow/great_expectations # Mount GX config
+      - ./gx:/opt/airflow/gx # Mount GX config
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
@@ -185,7 +185,7 @@ services:
       - ./spark/apps:/opt/bitnami/spark/apps  # <<< ADD THIS LINE
       - ./airflow/input:/opt/airflow/input
       - airflow_ivy_cache:/home/airflow/.ivy2
-      - ./great_expectations:/opt/airflow/great_expectations # Mount GX config
+      - ./gx:/opt/airflow/gx # Mount GX config
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow

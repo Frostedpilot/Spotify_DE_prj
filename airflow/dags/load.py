@@ -63,17 +63,17 @@ with DAG(
         trigger_rule=TriggerRule.ALL_SUCCESS,
     )
 
-    move_gold_task = PythonOperator(
-        task_id="move_gold",
-        python_callable=move_minio_files,
-        op_kwargs={
-            "source_prefix": MINIO_GOLD,
-            "dest_prefix": MINIO_GOLD.replace("latest", "archive"),
-            "minio_conn_id": MINIO_CONN_ID,
-            "bucket_name": MINIO_BUCKET,
-        },
-        trigger_rule=TriggerRule.ALL_DONE,
-    )
+    # move_gold_task = PythonOperator(
+    #     task_id="move_gold",
+    #     python_callable=move_minio_files,
+    #     op_kwargs={
+    #         "source_prefix": MINIO_GOLD,
+    #         "dest_prefix": MINIO_GOLD.replace("latest", "archive"),
+    #         "minio_conn_id": MINIO_CONN_ID,
+    #         "bucket_name": MINIO_BUCKET,
+    #     },
+    #     trigger_rule=TriggerRule.ALL_DONE,
+    # )
 
     load_task = SparkSubmitOperator(
         task_id="load",
@@ -97,4 +97,4 @@ with DAG(
         trigger_rule=TriggerRule.ALL_SUCCESS,
     )
 
-    start_here >> test_postgres_task >> create_table_task >> load_task >> move_gold_task
+    start_here >> test_postgres_task >> create_table_task >> load_task

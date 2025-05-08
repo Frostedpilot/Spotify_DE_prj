@@ -1,17 +1,21 @@
 import great_expectations as gx
+from great_expectations.core import ExpectationSuite
+from great_expectations.expectations.expectation_configuration import (
+    ExpectationConfiguration,
+)
 from great_expectations.exceptions import DataContextError
-from great_expectations.core.expectation_suite import ExpectationSuite
-from great_expectations.core.expectation_configuration import ExpectationConfiguration
 import datetime
 import logging
 import sys
 
 # --- Configuration ---
 # Path to your Great Expectations project directory
-CONTEXT_ROOT_DIR = "/opt/airflow/great_expectations"  # Adjust if running from a different relative location
+CONTEXT_ROOT_DIR = (
+    "/opt/airflow/gx"  # Adjust if running from a different relative location
+)
 
 # Name of the Expectation Suite to create/update
-EXPECTATION_SUITE_NAME = "silver_gx_user"  # Use a distinct name initially if needed
+EXPECTATION_SUITE_NAME = "user_gx"  # Use a distinct name initially if needed
 
 # Setup logging
 logging.basicConfig(
@@ -31,7 +35,7 @@ def define_gx_suite_manually():
 
     log.info(f"Constructing Expectation Suite: {EXPECTATION_SUITE_NAME}")
 
-    suite = ExpectationSuite(expectation_suite_name=EXPECTATION_SUITE_NAME)
+    suite = ExpectationSuite(name=EXPECTATION_SUITE_NAME)
 
     suite.meta = {
         "great_expectations_version": gx.__version__,
@@ -45,6 +49,8 @@ def define_gx_suite_manually():
 
     log.info("Adding expectations to the suite...")
     try:
+        es = []
+        log.info("Adding all_columns expectation...")
         all_columns = [
             "ts",
             "id",
@@ -56,19 +62,21 @@ def define_gx_suite_manually():
             "type",
         ]
 
-        suite.add_expectation(
-            ExpectationConfiguration(
-                expectation_type="expect_table_columns_to_match_ordered_list",
-                kwargs={"column_list": all_columns},
+        es.append(
+            gx.expectations.ExpectTableColumnsToMatchOrderedList(
+                column_list=all_columns,
+                result_format="COMPLETE",
             )
         )
 
-        suite.add_expectation(
-            ExpectationConfiguration(
-                expectation_type="expect_select_column_values_to_be_unique_within_record",
-                kwargs={"column_list": all_columns},
+        es.append(
+            gx.expectations.ExpectSelectColumnValuesToBeUniqueWithinRecord(
+                column_list=all_columns,
+                result_format="COMPLETE",
             )
         )
+
+        log.info("Adding column null expectations...")
 
         not_null_columns = [
             "ts",
@@ -79,20 +87,20 @@ def define_gx_suite_manually():
         ]
 
         for column in not_null_columns:
-            suite.add_expectation(
-                ExpectationConfiguration(
-                    expectation_type="expect_column_values_to_not_be_null",
-                    kwargs={"column": column},
+            es.append(
+                gx.expectations.ExpectColumnValuesToNotBeNull(
+                    column=column,
+                    result_format="COMPLETE",
                 )
             )
 
-        suite.add_expectation(
-            ExpectationConfiguration(
-                expectation_type="expect_column_values_to_be_between",
-                kwargs={
-                    "column": "seconds_played",
-                    "min_value": 0,
-                },
+        log.info("Adding column value expectations...")
+
+        es.append(
+            gx.expectations.ExpectColumnValuesToBeBetween(
+                column="seconds_played",
+                min_value=0,
+                result_format="COMPLETE",
             )
         )
 
@@ -103,9 +111,12 @@ def define_gx_suite_manually():
     log.info("Saving Expectation Suite...")
     try:
         # Save the constructed suite object (overwrites if suite with same name exists)
-        context.save_expectation_suite(
-            expectation_suite=suite, expectation_suite_name=EXPECTATION_SUITE_NAME
-        )
+
+        for expectation in es:
+            suite.add_expectation(expectation)
+
+        context.suites.add_or_update(suite)
+
         log.info(
             f"Expectation Suite '{EXPECTATION_SUITE_NAME}' saved successfully to {CONTEXT_ROOT_DIR}/expectations!"
         )

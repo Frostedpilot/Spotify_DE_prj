@@ -1,0 +1,107 @@
+{
+  "expectations": [
+    {
+      "id": "288ca64c-d9eb-4cb7-88e5-8cb15947819b",
+      "kwargs": {
+        "column_list": [
+          "ts",
+          "id",
+          "platform",
+          "seconds_played",
+          "track_name",
+          "album_artist_name",
+          "album_name",
+          "type"
+        ],
+        "result_format": "COMPLETE"
+      },
+      "meta": {},
+      "type": "expect_table_columns_to_match_ordered_list"
+    },
+    {
+      "id": "a54cc58c-4752-47eb-9178-ac74acd34503",
+      "kwargs": {
+        "column_list": [
+          "ts",
+          "id",
+          "platform",
+          "seconds_played",
+          "track_name",
+          "album_artist_name",
+          "album_name",
+          "type"
+        ],
+        "result_format": "COMPLETE"
+      },
+      "meta": {},
+      "type": "expect_select_column_values_to_be_unique_within_record"
+    },
+    {
+      "id": "54194e6e-1d60-4c66-9c37-cab0de6b1619",
+      "kwargs": {
+        "column": "ts",
+        "result_format": "COMPLETE"
+      },
+      "meta": {},
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "62bb119d-020a-4da7-a649-102e3b5ec041",
+      "kwargs": {
+        "column": "id",
+        "result_format": "COMPLETE"
+      },
+      "meta": {},
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "a71c242c-e644-4528-93c0-32e0f9bd25de",
+      "kwargs": {
+        "column": "seconds_played",
+        "result_format": "COMPLETE"
+      },
+      "meta": {},
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "c248c1ce-c98c-481e-9ad0-bae77ae0c703",
+      "kwargs": {
+        "column": "track_name",
+        "result_format": "COMPLETE"
+      },
+      "meta": {},
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "693bdd3d-be2e-4807-a0d7-d1e3e55b26ca",
+      "kwargs": {
+        "column": "album_artist_name",
+        "result_format": "COMPLETE"
+      },
+      "meta": {},
+      "type": "expect_column_values_to_not_be_null"
+    },
+    {
+      "id": "a5910b25-4927-4fde-87ae-fa1de8bb95dc",
+      "kwargs": {
+        "column": "seconds_played",
+        "min_value": 0.0,
+        "result_format": "COMPLETE"
+      },
+      "meta": {},
+      "type": "expect_column_values_to_be_between"
+    }
+  ],
+  "id": "8494842e-bbcc-41a1-abae-51b4de961282",
+  "meta": {
+    "citations": [
+      {
+        "citation_date": "2025-05-08 07:08:24",
+        "comment": "Suite 'user_gx' created/updated manually by script 'define_gx_suite_silver.py'."
+      }
+    ],
+    "great_expectations_version": "1.4.2"
+  },
+  "name": "user_gx",
+  "notes": null
+}
